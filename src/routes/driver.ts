@@ -7,10 +7,14 @@ import { requireAuth } from '../middleware/auth';
 import { AuthRequest } from '../types';
 
 const uploadsDir = path.join(__dirname, '../../uploads/driver-docs');
+const avatarsDir = path.join(__dirname, '../../uploads/avatars');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+if (!fs.existsSync(avatarsDir)) fs.mkdirSync(avatarsDir, { recursive: true });
 
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  destination: (_req, file, cb) => {
+    cb(null, file.fieldname === 'avatar' ? avatarsDir : uploadsDir);
+  },
   filename: (req: Request, file, cb) => {
     const userId = (req as AuthRequest).user?.id || 'unknown';
     const ext = path.extname(file.originalname);
@@ -20,13 +24,25 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.pdf'];
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, allowed.includes(ext));
   },
 });
+
+const docFields = [
+  { name: 'id_photo', maxCount: 1 },
+  { name: 'license_photo', maxCount: 1 },
+  { name: 'vehicle_photo', maxCount: 1 },
+  { name: 'nric', maxCount: 1 },
+  { name: 'vehicle_id_card', maxCount: 1 },
+  { name: 'technical_inspection', maxCount: 1 },
+  { name: 'taxi_license', maxCount: 1 },
+  { name: 'vaccination_card', maxCount: 1 },
+  { name: 'avatar', maxCount: 1 },
+];
 
 const router = Router();
 
@@ -93,20 +109,11 @@ router.get('/application', requireAuth, async (req: AuthRequest, res: Response):
 router.post(
   '/application',
   requireAuth,
-  upload.fields([
-    { name: 'id_photo', maxCount: 1 },
-    { name: 'license_photo', maxCount: 1 },
-    { name: 'vehicle_photo', maxCount: 1 },
-    { name: 'nric', maxCount: 1 },
-    { name: 'vehicle_id_card', maxCount: 1 },
-    { name: 'technical_inspection', maxCount: 1 },
-    { name: 'taxi_license', maxCount: 1 },
-    { name: 'vaccination_card', maxCount: 1 },
-  ]),
+  upload.fields(docFields),
   async (req: AuthRequest, res: Response): Promise<void> => {
     const files = req.files as Record<string, Express.Multer.File[]>;
     const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
-    const fileUrl = (fieldName: string) =>
+    const docUrl = (fieldName: string) =>
       files?.[fieldName]?.[0]
         ? `${baseUrl}/uploads/driver-docs/${files[fieldName][0].filename}`
         : null;
@@ -132,17 +139,101 @@ router.post(
         [
           req.user!.id, full_name, phone, vehicle_type, vehicle_color, plate_number,
           years_experience, languages_spoken ? JSON.parse(languages_spoken) : [],
-          fileUrl('id_photo'), fileUrl('license_photo'), fileUrl('vehicle_photo'),
-          fileUrl('nric'), fileUrl('vehicle_id_card'), fileUrl('technical_inspection'),
-          fileUrl('taxi_license'), fileUrl('vaccination_card'),
+          docUrl('id_photo'), docUrl('license_photo'), docUrl('vehicle_photo'),
+          docUrl('nric'), docUrl('vehicle_id_card'), docUrl('technical_inspection'),
+          docUrl('taxi_license'), docUrl('vaccination_card'),
           bank_name, bank_account_number, bank_account_holder,
-          date_of_birth, national_id_number, address, city, vehicle_brand, vehicle_model, vehicle_year,
+          date_of_birth || null, national_id_number, address, city, vehicle_brand, vehicle_model, vehicle_year || null,
         ]
       );
+
+      // Update profile avatar if provided
+      if (files?.avatar?.[0]) {
+        const avatarUrl = `${baseUrl}/uploads/avatars/${files.avatar[0].filename}`;
+        await pool.query('UPDATE profiles SET avatar_url = $1 WHERE id = $2', [avatarUrl, req.user!.id]).catch(() => {});
+      }
+
       res.status(201).json(rows[0]);
     } catch (err) {
       console.error('Create application error:', err);
       res.status(500).json({ error: 'Failed to submit application' });
+    }
+  }
+);
+
+// PATCH /api/driver/application/:id  (resubmission)
+router.patch(
+  '/application/:id',
+  requireAuth,
+  upload.fields(docFields),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const files = req.files as Record<string, Express.Multer.File[]>;
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+
+    // Verify ownership
+    const { rows: existing } = await pool.query(
+      'SELECT * FROM driver_applications WHERE id = $1 AND user_id = $2',
+      [id, req.user!.id]
+    );
+    if (!existing.length) {
+      res.status(404).json({ error: 'Application not found' });
+      return;
+    }
+    const app = existing[0];
+
+    const docUrl = (fieldName: string, existingUrl: string | null) =>
+      files?.[fieldName]?.[0]
+        ? `${baseUrl}/uploads/driver-docs/${files[fieldName][0].filename}`
+        : existingUrl;
+
+    const {
+      full_name, phone, vehicle_type, vehicle_color, plate_number,
+      years_experience, languages_spoken, bank_name, bank_account_number, bank_account_holder,
+      date_of_birth, national_id_number, address, city,
+      vehicle_brand, vehicle_model, vehicle_year,
+    } = req.body;
+
+    try {
+      const { rows } = await pool.query(
+        `UPDATE driver_applications SET
+          full_name=$2, phone=$3, vehicle_type=$4, vehicle_color=$5, plate_number=$6,
+          years_experience=$7, languages_spoken=$8,
+          id_photo_url=$9, license_photo_url=$10, vehicle_photo_url=$11,
+          nric_url=$12, vehicle_id_card_url=$13, technical_inspection_url=$14,
+          taxi_license_url=$15, vaccination_card_url=$16,
+          bank_name=$17, bank_account_number=$18, bank_account_holder=$19,
+          date_of_birth=$20, national_id_number=$21, address=$22, city=$23,
+          vehicle_brand=$24, vehicle_model=$25, vehicle_year=$26,
+          status='pending'
+         WHERE id=$1 AND user_id=$27
+         RETURNING *`,
+        [
+          id,
+          full_name, phone, vehicle_type, vehicle_color, plate_number,
+          years_experience, languages_spoken ? JSON.parse(languages_spoken) : [],
+          docUrl('id_photo', app.id_photo_url), docUrl('license_photo', app.license_photo_url),
+          docUrl('vehicle_photo', app.vehicle_photo_url),
+          docUrl('nric', app.nric_url), docUrl('vehicle_id_card', app.vehicle_id_card_url),
+          docUrl('technical_inspection', app.technical_inspection_url),
+          docUrl('taxi_license', app.taxi_license_url), docUrl('vaccination_card', app.vaccination_card_url),
+          bank_name, bank_account_number, bank_account_holder,
+          date_of_birth || null, national_id_number, address, city,
+          vehicle_brand, vehicle_model, vehicle_year || null,
+          req.user!.id,
+        ]
+      );
+
+      // Update profile avatar if provided
+      if (files?.avatar?.[0]) {
+        const avatarUrl = `${baseUrl}/uploads/avatars/${files.avatar[0].filename}`;
+        await pool.query('UPDATE profiles SET avatar_url = $1 WHERE id = $2', [avatarUrl, req.user!.id]).catch(() => {});
+      }
+
+      res.json(rows[0]);
+    } catch (err) {
+      console.error('Update application error:', err);
+      res.status(500).json({ error: 'Failed to update application' });
     }
   }
 );
