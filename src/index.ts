@@ -16,12 +16,15 @@ import analyticsRoutes from './routes/analytics';
 import waitlistRoutes from './routes/waitlist';
 import adminRoutes from './routes/admin';
 import cmsRoutes from './routes/cms';
+import dbRoutes from './routes/db';
+import rpcRoutes from './routes/rpc';
 
 const app = express();
 const httpServer = createServer(app);
 
 const allowedOrigins = [
   'http://localhost:8080',
+  'http://localhost:8081',
   'http://localhost:5173',
   'http://localhost:3000',
   ...((process.env.FRONTEND_URL || '').split(',').filter(Boolean)),
@@ -54,6 +57,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/cms', cmsRoutes);
+app.use('/api/db', dbRoutes);
+app.use('/api/rpc', rpcRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
