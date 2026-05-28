@@ -14,6 +14,11 @@ const ALLOWED_TABLES = new Set([
   'hotel_partners', 'traffic_messages', 'broadcast_messages',
   'cms_content', 'cms_images', 'driver_subscriptions', 'app_waitlist',
   'favorite_drivers', 'driver_locations', 'profile_update_requests',
+  // additional tables
+  'ride_ratings', 'users',
+  'withdrawals', 'driver_leads', 'mool_transfers',
+  'partner_bookings', 'partner_invoices',
+  'consent_records', 'gdpr_requests', 'ride_logs', 'refunds',
 ]);
 
 const COL_RE = /^[a-z_][a-z0-9_]*$/;
@@ -96,11 +101,16 @@ router.get('/:table', async (req: AuthRequest, res: Response): Promise<void> => 
     if (cols.length > 0) selectCols = cols.join(', ');
   }
 
-  // Special JOINs per table
+  // Special JOINs per table — use subqueries so WHERE/ORDER cols are never ambiguous
   let fromClause = table;
   if (table === 'driver_applications') {
-    fromClause = 'driver_applications da LEFT JOIN profiles p ON p.id = da.user_id';
-    if (selectCols === '*') selectCols = 'da.*, p.email AS email';
+    fromClause = `(SELECT da.*, p.email AS email FROM driver_applications da LEFT JOIN profiles p ON p.id = da.user_id) driver_applications`;
+  } else if (table === 'withdrawals') {
+    fromClause = `(SELECT w.*, p.full_name AS driver_name, p.email AS driver_email FROM withdrawals w LEFT JOIN profiles p ON p.id = w.driver_id) withdrawals`;
+  } else if (table === 'partner_bookings') {
+    fromClause = `(SELECT pb.*, hp.name AS hotel_name FROM partner_bookings pb LEFT JOIN hotel_partners hp ON hp.id = pb.hotel_id) partner_bookings`;
+  } else if (table === 'partner_invoices') {
+    fromClause = `(SELECT pi.*, hp.name AS hotel_name FROM partner_invoices pi LEFT JOIN hotel_partners hp ON hp.id = pi.hotel_id) partner_invoices`;
   }
 
   try {
@@ -218,7 +228,7 @@ router.patch('/:table', async (req: AuthRequest, res: Response): Promise<void> =
          VALUES ($1,$2,$3,$4,$5,$6,true,true,true,true)
          ON CONFLICT (user_id) DO UPDATE SET
            vehicle_type=$2, plate_number=$3, vehicle_color=$4, vehicle_brand=$5, vehicle_model=$6,
-           is_id_verified=true, is_active=true`,
+           is_id_verified=true, is_license_verified=true, is_vehicle_verified=true, is_active=true`,
         [app.user_id, app.vehicle_type, app.plate_number, app.vehicle_color, app.vehicle_brand, app.vehicle_model]
       ).catch(() => {});
       await pool.query(

@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { pool } from '../db';
+import { emitDbChange } from '../socket';
 import { requireAuth } from '../middleware/auth';
 import { AuthRequest } from '../types';
 
@@ -88,6 +89,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response): Promise<v
         JSON.stringify(stops || []), vehicle_type, estimated_fare, payment_method || 'cash',
       ]
     );
+    emitDbChange('rides', 'INSERT', rows[0]);
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error('Create ride error:', err);

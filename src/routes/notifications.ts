@@ -51,4 +51,17 @@ router.patch('/read-all', requireAuth, async (req: AuthRequest, res: Response): 
   }
 });
 
+// POST /api/notifications
+router.post('/', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { user_id, title, message, type, ride_id } = req.body;
+  if (!user_id || !title || !message) { res.status(400).json({ error: 'user_id, title, message required' }); return; }
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO notifications (user_id, title, message, type, ride_id) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [user_id, title, message, type || 'info', ride_id || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 export default router;

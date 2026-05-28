@@ -7,6 +7,7 @@ import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 
 import { pool } from './db';
+import { setIo } from './socket';
 import authRoutes from './routes/auth';
 import profileRoutes from './routes/profile';
 import ridesRoutes from './routes/rides';
@@ -18,6 +19,7 @@ import adminRoutes from './routes/admin';
 import cmsRoutes from './routes/cms';
 import dbRoutes from './routes/db';
 import rpcRoutes from './routes/rpc';
+import passengerRoutes from './routes/passenger';
 
 const app = express();
 const httpServer = createServer(app);
@@ -42,6 +44,7 @@ const corsOptions = {
 const io = new Server(httpServer, {
   cors: { origin: allowedOrigins, credentials: true },
 });
+setIo(io);
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
@@ -59,6 +62,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/db', dbRoutes);
 app.use('/api/rpc', rpcRoutes);
+app.use('/api', passengerRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 

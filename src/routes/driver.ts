@@ -62,7 +62,7 @@ router.get('/profile', requireAuth, async (req: AuthRequest, res: Response): Pro
 
 // PATCH /api/driver/profile
 router.patch('/profile', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
-  const allowed = ['vehicle_type', 'plate_number', 'vehicle_color', 'vehicle_brand', 'vehicle_model', 'is_online', 'current_lat', 'current_lng', 'last_location_update'];
+  const allowed = ['vehicle_type', 'plate_number', 'vehicle_color', 'vehicle_brand', 'vehicle_model', 'is_online', 'current_lat', 'current_lng', 'last_location_update', 'suspend_after_ride', 'pending_earnings', 'is_active'];
   const updates: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in req.body) updates[key] = req.body[key];
@@ -147,10 +147,37 @@ router.post(
         ]
       );
 
-      // Update profile avatar if provided
+      const upsertDoc = async (driverId: string, docType: string, url: string) => {
+        await pool.query(
+          `INSERT INTO driver_documents (driver_id, document_type, file_url, status, uploaded_at)
+           VALUES ($1, $2, $3, 'pending', NOW())
+           ON CONFLICT (driver_id, document_type) DO UPDATE SET
+             file_url = EXCLUDED.file_url, status = 'pending', uploaded_at = NOW()`,
+          [driverId, docType, url]
+        ).catch((e) => console.error(`driver_documents upsert [${docType}]:`, e.message));
+      };
+
+      // Upsert driver_documents for each uploaded file
+      const docTypeMap: Record<string, string> = {
+        nric: 'nric',
+        license_photo: 'driver_license',
+        vehicle_photo: 'vehicle_photo',
+        vehicle_id_card: 'vehicle_id_card',
+        technical_inspection: 'technical_inspection',
+        taxi_license: 'taxi_license',
+        vaccination_card: 'vaccination_card',
+      };
+      for (const [fieldName, docType] of Object.entries(docTypeMap)) {
+        const url = docUrl(fieldName);
+        if (url) await upsertDoc(req.user!.id, docType, url);
+      }
+
+      // Update profile avatar and store as id_photo document
       if (files?.avatar?.[0]) {
         const avatarUrl = `${baseUrl}/uploads/avatars/${files.avatar[0].filename}`;
-        await pool.query('UPDATE profiles SET avatar_url = $1 WHERE id = $2', [avatarUrl, req.user!.id]).catch(() => {});
+        await pool.query('UPDATE profiles SET avatar_url = $1 WHERE id = $2', [avatarUrl, req.user!.id])
+          .catch((e) => console.error('avatar profile update:', e.message));
+        await upsertDoc(req.user!.id, 'id_photo', avatarUrl);
       }
 
       res.status(201).json(rows[0]);
@@ -224,10 +251,39 @@ router.patch(
         ]
       );
 
-      // Update profile avatar if provided
+      const upsertDoc = async (driverId: string, docType: string, url: string) => {
+        await pool.query(
+          `INSERT INTO driver_documents (driver_id, document_type, file_url, status, uploaded_at)
+           VALUES ($1, $2, $3, 'pending', NOW())
+           ON CONFLICT (driver_id, document_type) DO UPDATE SET
+             file_url = EXCLUDED.file_url, status = 'pending', uploaded_at = NOW()`,
+          [driverId, docType, url]
+        ).catch((e) => console.error(`driver_documents upsert [${docType}]:`, e.message));
+      };
+
+      // Update profile avatar and store as id_photo document
       if (files?.avatar?.[0]) {
         const avatarUrl = `${baseUrl}/uploads/avatars/${files.avatar[0].filename}`;
-        await pool.query('UPDATE profiles SET avatar_url = $1 WHERE id = $2', [avatarUrl, req.user!.id]).catch(() => {});
+        await pool.query('UPDATE profiles SET avatar_url = $1 WHERE id = $2', [avatarUrl, req.user!.id])
+          .catch((e) => console.error('avatar profile update:', e.message));
+        await upsertDoc(req.user!.id, 'id_photo', avatarUrl);
+      }
+
+      // Upsert driver_documents for each newly uploaded file
+      const docTypeMap: Record<string, string> = {
+        nric: 'nric',
+        license_photo: 'driver_license',
+        vehicle_photo: 'vehicle_photo',
+        vehicle_id_card: 'vehicle_id_card',
+        technical_inspection: 'technical_inspection',
+        taxi_license: 'taxi_license',
+        vaccination_card: 'vaccination_card',
+      };
+      for (const [fieldName, docType] of Object.entries(docTypeMap)) {
+        if (files?.[fieldName]?.[0]) {
+          const url = `${baseUrl}/uploads/driver-docs/${files[fieldName][0].filename}`;
+          await upsertDoc(req.user!.id, docType, url);
+        }
       }
 
       res.json(rows[0]);

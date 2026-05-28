@@ -94,7 +94,11 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 
   try {
     const { rows } = await pool.query(
-      'SELECT u.*, r.role FROM users u LEFT JOIN user_roles r ON r.user_id = u.id WHERE u.email = $1',
+      `SELECT u.*, r.role FROM users u
+       LEFT JOIN user_roles r ON r.user_id = u.id
+       WHERE u.email = $1
+       ORDER BY CASE r.role WHEN 'admin' THEN 0 WHEN 'driver' THEN 1 WHEN 'partner' THEN 2 WHEN 'investor' THEN 3 ELSE 4 END
+       LIMIT 1`,
       [email]
     );
     const user = rows[0];
@@ -273,7 +277,12 @@ router.get('/me', requireAuth, async (req: AuthRequest, res: Response): Promise<
       [req.user!.id]
     );
     const { rows: profileRows } = await pool.query('SELECT * FROM profiles WHERE id = $1', [req.user!.id]);
-    const { rows: roleRows } = await pool.query('SELECT role FROM user_roles WHERE user_id = $1', [req.user!.id]);
+    const { rows: roleRows } = await pool.query(
+      `SELECT role FROM user_roles WHERE user_id = $1
+       ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'driver' THEN 1 WHEN 'partner' THEN 2 WHEN 'investor' THEN 3 ELSE 4 END
+       LIMIT 1`,
+      [req.user!.id]
+    );
 
     if (!userRows[0]) {
       res.status(404).json({ error: 'User not found' });

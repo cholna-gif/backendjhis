@@ -1,0 +1,482 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model admin_settings {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key        String    @unique
+  value      String
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model analytics_events {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_name     String
+  event_category String?
+  properties     Json?
+  page           String?
+  session_id     String?
+  user_id        String?   @db.Uuid
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  users          users?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([event_name], map: "idx_analytics_events_name")
+  @@index([user_id], map: "idx_analytics_events_user")
+}
+
+model app_waitlist {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone      String    @unique
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model audit_logs {
+  id                                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                              String?   @db.Uuid
+  action                               String
+  table_name                           String?
+  record_id                            String?   @db.Uuid
+  old_data                             Json?
+  new_data                             Json?
+  ip_address                           String?
+  created_at                           DateTime? @default(now()) @db.Timestamptz(6)
+  performed_by                         String?   @db.Uuid
+  action_type                          String?
+  target_type                          String?
+  target_id                            String?
+  target_name                          String?
+  details                              Json?
+  users_audit_logs_performed_byTousers users?    @relation("audit_logs_performed_byTousers", fields: [performed_by], references: [id], onUpdate: NoAction)
+  users_audit_logs_user_idTousers      users?    @relation("audit_logs_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction)
+}
+
+model broadcast_messages {
+  id      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title   String?
+  body    String
+  target  String?   @default("all")
+  sent_by String?   @db.Uuid
+  sent_at DateTime? @default(now()) @db.Timestamptz(6)
+  users   users?    @relation(fields: [sent_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model cms_content {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key        String    @unique
+  value      Json      @default("{}")
+  updated_by String?   @db.Uuid
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  users      users?    @relation(fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model cms_images {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slot       String    @unique
+  url        String
+  updated_by String?   @db.Uuid
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  users      users?    @relation(fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model disputes {
+  id                                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ride_id                           String?   @db.Uuid
+  opened_by                         String?   @db.Uuid
+  reason                            String?
+  status                            String?   @default("open")
+  resolution                        String?
+  resolved_by                       String?   @db.Uuid
+  resolved_at                       DateTime? @db.Timestamptz(6)
+  created_at                        DateTime? @default(now()) @db.Timestamptz(6)
+  users_disputes_opened_byTousers   users?    @relation("disputes_opened_byTousers", fields: [opened_by], references: [id], onUpdate: NoAction)
+  users_disputes_resolved_byTousers users?    @relation("disputes_resolved_byTousers", fields: [resolved_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rides                             rides?    @relation(fields: [ride_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model donations {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String?   @db.Uuid
+  amount         Decimal   @db.Decimal
+  payment_method String?
+  status         String?   @default("pending")
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  users          users?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model driver_applications {
+  id                                           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                      String    @db.Uuid
+  full_name                                    String?
+  phone                                        String?
+  vehicle_type                                 String?
+  vehicle_color                                String?
+  vehicle_brand                                String?
+  vehicle_model                                String?
+  vehicle_year                                 Int?
+  plate_number                                 String?
+  years_experience                             Int?
+  languages_spoken                             String[]
+  date_of_birth                                DateTime? @db.Date
+  national_id_number                           String?
+  address                                      String?
+  city                                         String?
+  id_photo_url                                 String?
+  license_photo_url                            String?
+  vehicle_photo_url                            String?
+  nric_url                                     String?
+  vehicle_id_card_url                          String?
+  technical_inspection_url                     String?
+  taxi_license_url                             String?
+  vaccination_card_url                         String?
+  bank_name                                    String?
+  bank_account_number                          String?
+  bank_account_holder                          String?
+  status                                       String?   @default("pending")
+  admin_notes                                  String?
+  rejection_reason                             String?
+  reviewed_by                                  String?   @db.Uuid
+  reviewed_at                                  DateTime? @db.Timestamptz(6)
+  email_sent                                   Boolean?  @default(false)
+  email_sent_at                                DateTime? @db.Timestamptz(6)
+  resubmission_count                           Int?      @default(0)
+  draft_data                                   Json?
+  created_at                                   DateTime? @default(now()) @db.Timestamptz(6)
+  internal_notes                               String?
+  users_driver_applications_reviewed_byTousers users?    @relation("driver_applications_reviewed_byTousers", fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_driver_applications_user_idTousers     users     @relation("driver_applications_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([status], map: "idx_driver_applications_status")
+  @@index([user_id], map: "idx_driver_applications_user")
+}
+
+model driver_documents {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String    @db.Uuid
+  doc_type    String
+  url         String
+  verified    Boolean?  @default(false)
+  uploaded_at DateTime? @default(now()) @db.Timestamptz(6)
+  users       users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model driver_locations {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  driver_id  String    @unique @db.Uuid
+  lat        Float
+  lng        Float
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  users      users     @relation(fields: [driver_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([driver_id], map: "idx_driver_locations_driver")
+}
+
+model driver_profiles {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id              String    @unique @db.Uuid
+  vehicle_type         String?
+  plate_number         String?
+  vehicle_color        String?
+  vehicle_brand        String?
+  vehicle_model        String?
+  is_online            Boolean?  @default(false)
+  current_lat          Float?
+  current_lng          Float?
+  last_location_update DateTime? @db.Timestamptz(6)
+  has_active_ride      Boolean?  @default(false)
+  total_earnings       Float?    @default(0)
+  total_rides          Int?      @default(0)
+  average_rating       Float?    @default(0)
+  created_at           DateTime? @default(now()) @db.Timestamptz(6)
+  suspend_after_ride   Boolean?  @default(false)
+  is_id_verified       Boolean?  @default(false)
+  is_license_verified  Boolean?  @default(false)
+  is_vehicle_verified  Boolean?  @default(false)
+  is_active            Boolean?  @default(true)
+  speaks_english       Boolean?  @default(false)
+  tourist_friendly     Boolean?  @default(false)
+  disability_support   Boolean?  @default(false)
+  years_experience     Int?
+  languages_spoken     String[]
+  users                users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model driver_subscriptions {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  plan       String
+  status     String?   @default("active")
+  starts_at  DateTime? @default(now()) @db.Timestamptz(6)
+  ends_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model fare_adjustments {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vehicle_type String?
+  base_fare    Decimal?  @db.Decimal
+  per_km_rate  Decimal?  @db.Decimal
+  surge_factor Decimal?  @default(1.0) @db.Decimal
+  active       Boolean?  @default(true)
+  updated_by   String?   @db.Uuid
+  updated_at   DateTime? @default(now()) @db.Timestamptz(6)
+  users        users?    @relation(fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model favorite_drivers {
+  id                                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  passenger_id                               String    @db.Uuid
+  driver_id                                  String    @db.Uuid
+  created_at                                 DateTime? @default(now()) @db.Timestamptz(6)
+  users_favorite_drivers_driver_idTousers    users     @relation("favorite_drivers_driver_idTousers", fields: [driver_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_favorite_drivers_passenger_idTousers users     @relation("favorite_drivers_passenger_idTousers", fields: [passenger_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([passenger_id, driver_id])
+  @@index([passenger_id], map: "idx_favorite_drivers_passenger")
+}
+
+model hotel_partners {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String?   @db.Uuid
+  hotel_name   String
+  contact_name String?
+  email        String?
+  phone        String?
+  address      String?
+  status       String?   @default("active")
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  users        users?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+}
+
+model incident_reports {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reported_by String?   @db.Uuid
+  ride_id     String?   @db.Uuid
+  type        String?
+  description String?
+  status      String?   @default("open")
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  users       users?    @relation(fields: [reported_by], references: [id], onUpdate: NoAction)
+  rides       rides?    @relation(fields: [ride_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model notifications {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  title      String?
+  message    String?
+  type       String?
+  read       Boolean?  @default(false)
+  ride_id    String?   @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  rides      rides?    @relation(fields: [ride_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_notifications_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model profile_update_requests {
+  id                                               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                          String    @db.Uuid
+  field_name                                       String
+  old_value                                        String?
+  new_value                                        String?
+  status                                           String?   @default("pending")
+  reviewed_by                                      String?   @db.Uuid
+  reviewed_at                                      DateTime? @db.Timestamptz(6)
+  created_at                                       DateTime? @default(now()) @db.Timestamptz(6)
+  users_profile_update_requests_reviewed_byTousers users?    @relation("profile_update_requests_reviewed_byTousers", fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_profile_update_requests_user_idTousers     users     @relation("profile_update_requests_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_profile_update_requests_user")
+}
+
+model profiles {
+  id             String    @id @db.Uuid
+  full_name      String?
+  email          String?
+  phone          String?
+  avatar_url     String?
+  language       String?   @default("en")
+  wallet_balance Decimal?  @default(0) @db.Decimal
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  is_suspended   Boolean?  @default(false)
+  users          users     @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ride_ratings {
+  id                                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ride_id                            String    @db.Uuid
+  rater_id                           String    @db.Uuid
+  rated_id                           String    @db.Uuid
+  rating                             Int
+  review                             String?
+  rated_as                           String
+  created_at                         DateTime? @default(now()) @db.Timestamptz(6)
+  users_ride_ratings_rated_idTousers users     @relation("ride_ratings_rated_idTousers", fields: [rated_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_ride_ratings_rater_idTousers users     @relation("ride_ratings_rater_idTousers", fields: [rater_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  rides                              rides     @relation(fields: [ride_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model rides {
+  id                              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  passenger_id                    String             @db.Uuid
+  driver_id                       String?            @db.Uuid
+  booking_type                    String?            @default("standard")
+  status                          String?            @default("pending")
+  pickup_address                  String?
+  pickup_lat                      Float?
+  pickup_lng                      Float?
+  destination_address             String?
+  destination_lat                 Float?
+  destination_lng                 Float?
+  stops                           Json?              @default("[]")
+  vehicle_type                    String?
+  estimated_fare                  Float?
+  final_fare                      Float?
+  driver_earnings                 Float?
+  distance_km                     Float?
+  duration_minutes                Int?
+  payment_method                  String?            @default("cash")
+  passenger_rating                Int?
+  driver_rating                   Int?
+  passenger_review                String?
+  driver_review                   String?
+  arrived_at                      DateTime?          @db.Timestamptz(6)
+  started_at                      DateTime?          @db.Timestamptz(6)
+  completed_at                    DateTime?          @db.Timestamptz(6)
+  cancelled_at                    DateTime?          @db.Timestamptz(6)
+  cancellation_reason             String?
+  created_at                      DateTime?          @default(now()) @db.Timestamptz(6)
+  matched_at                      DateTime?          @db.Timestamptz(6)
+  cancelled_by                    String?
+  payment_status                  String?            @default("unpaid")
+  offered_fare                    Float?
+  agreed_price                    Float?
+  ride_type                       String?            @default("private")
+  hire_description                String?
+  scheduled_datetime              DateTime?          @db.Timestamptz(6)
+  preferred_driver_id             String?            @db.Uuid
+  disputes                        disputes[]
+  incident_reports                incident_reports[]
+  notifications                   notifications[]
+  ride_ratings                    ride_ratings[]
+  users_rides_driver_idTousers    users?             @relation("rides_driver_idTousers", fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_rides_passenger_idTousers users              @relation("rides_passenger_idTousers", fields: [passenger_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  support_tickets                 support_tickets[]
+
+  @@index([driver_id], map: "idx_rides_driver")
+  @@index([passenger_id], map: "idx_rides_passenger")
+  @@index([status], map: "idx_rides_status")
+}
+
+model support_tickets {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String?   @db.Uuid
+  subject    String?
+  message    String?
+  status     String?   @default("open")
+  category   String?   @default("general")
+  priority   String?   @default("normal")
+  ride_id    String?   @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  rides      rides?    @relation(fields: [ride_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users      users?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+}
+
+model traffic_messages {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message    String
+  active     Boolean?  @default(true)
+  created_by String?   @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  users      users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model user_roles {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  role       app_role
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, role])
+  @@index([user_id], map: "idx_user_roles_user")
+}
+
+model users {
+  id                                                                 String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                                                              String                    @unique
+  password_hash                                                      String?
+  email_verified                                                     Boolean?                  @default(false)
+  email_verification_token                                           String?
+  email_verification_expires                                         DateTime?                 @db.Timestamptz(6)
+  password_reset_token                                               String?
+  password_reset_expires                                             DateTime?                 @db.Timestamptz(6)
+  raw_user_meta_data                                                 Json?                     @default("{}")
+  created_at                                                         DateTime?                 @default(now()) @db.Timestamptz(6)
+  analytics_events                                                   analytics_events[]
+  audit_logs_audit_logs_performed_byTousers                          audit_logs[]              @relation("audit_logs_performed_byTousers")
+  audit_logs_audit_logs_user_idTousers                               audit_logs[]              @relation("audit_logs_user_idTousers")
+  broadcast_messages                                                 broadcast_messages[]
+  cms_content                                                        cms_content[]
+  cms_images                                                         cms_images[]
+  disputes_disputes_opened_byTousers                                 disputes[]                @relation("disputes_opened_byTousers")
+  disputes_disputes_resolved_byTousers                               disputes[]                @relation("disputes_resolved_byTousers")
+  donations                                                          donations[]
+  driver_applications_driver_applications_reviewed_byTousers         driver_applications[]     @relation("driver_applications_reviewed_byTousers")
+  driver_applications_driver_applications_user_idTousers             driver_applications[]     @relation("driver_applications_user_idTousers")
+  driver_documents                                                   driver_documents[]
+  driver_locations                                                   driver_locations?
+  driver_profiles                                                    driver_profiles?
+  driver_subscriptions                                               driver_subscriptions[]
+  fare_adjustments                                                   fare_adjustments[]
+  favorite_drivers_favorite_drivers_driver_idTousers                 favorite_drivers[]        @relation("favorite_drivers_driver_idTousers")
+  favorite_drivers_favorite_drivers_passenger_idTousers              favorite_drivers[]        @relation("favorite_drivers_passenger_idTousers")
+  hotel_partners                                                     hotel_partners[]
+  incident_reports                                                   incident_reports[]
+  notifications                                                      notifications[]
+  profile_update_requests_profile_update_requests_reviewed_byTousers profile_update_requests[] @relation("profile_update_requests_reviewed_byTousers")
+  profile_update_requests_profile_update_requests_user_idTousers     profile_update_requests[] @relation("profile_update_requests_user_idTousers")
+  profiles                                                           profiles?
+  ride_ratings_ride_ratings_rated_idTousers                          ride_ratings[]            @relation("ride_ratings_rated_idTousers")
+  ride_ratings_ride_ratings_rater_idTousers                          ride_ratings[]            @relation("ride_ratings_rater_idTousers")
+  rides_rides_driver_idTousers                                       rides[]                   @relation("rides_driver_idTousers")
+  rides_rides_passenger_idTousers                                    rides[]                   @relation("rides_passenger_idTousers")
+  support_tickets                                                    support_tickets[]
+  traffic_messages                                                   traffic_messages[]
+  user_roles                                                         user_roles[]
+  wallet_transactions_wallet_transactions_created_byTousers          wallet_transactions[]     @relation("wallet_transactions_created_byTousers")
+  wallet_transactions_wallet_transactions_user_idTousers             wallet_transactions[]     @relation("wallet_transactions_user_idTousers")
+}
+
+model wallet_transactions {
+  id                                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                     String    @db.Uuid
+  amount                                      Decimal   @db.Decimal
+  reason                                      String?
+  type                                        String?
+  method                                      String?
+  created_by                                  String?   @db.Uuid
+  created_at                                  DateTime? @default(now()) @db.Timestamptz(6)
+  users_wallet_transactions_created_byTousers users?    @relation("wallet_transactions_created_byTousers", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_wallet_transactions_user_idTousers    users     @relation("wallet_transactions_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "idx_wallet_transactions_user")
+}
+
+enum app_role {
+  passenger
+  driver
+  admin
+  partner
+  investor
+}
